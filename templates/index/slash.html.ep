@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    %= asset "bootstrap.css"
+    %= asset "jquery.js"
+    %= asset "bootstrap.js"
+
+    <script src="notify.js"></script>
+  </head>
+
+  <body>
+    %= include 'index/body'
+
+    <style>
+        %= include 'index/css'
+    </style>
+
+    <script>
+        var mojo = new Mojo();
+
+        mojo.on("connect", function() { console.log("Connect") });
+        mojo.on("initialize", function(e, notify) { 
+            console.log("initialize");
+        });
+        mojo.on("heartbeat", function() { console.log("Heartbeat") });
+        mojo.on("reconnect", function() { console.log("Reconnect") });
+        mojo.on("disconnect", function() { console.log("Disconnect") });
+
+        mojo.channel("presence").on("receive", function(e, data) { 
+            console.log("Presence Receive: " + JSON.stringify(data.data));
+
+            if ("success" === data.data.login) {
+                $('#usernameModal').modal("hide");
+
+                mojo.channel("chat").send({ action: "refresh", username: $('#username').val() });
+            }
+        });
+
+        mojo.channel("chat").on("receive", function(e, data) { 
+            var datum = data.data;
+
+            console.log("Chat Receive: " + JSON.stringify(datum));
+
+            if ("refresh" === datum.action) {
+                if (0 == datum.messages.length) {
+                    $('#chat').html('No messages');
+                }
+                else {
+                    $(datum.messages).each(function (index, value) {
+                        if (value.username === $('#username').val()) {
+                            $('#chat').append(iSaid(value.username, value.inserted, value.message));
+                        }
+                        else {
+                            $('#chat').append(theySaid(value.username, value.inserted, value.message));
+                        }
+                    });
+                }
+            }
+            else if ("outgoing" === datum.action) {
+                if ("No messages" === $('#chat').html()) {
+                    $('#chat').html("");
+                }
+
+                if (datum.username === $('#username').val() && datum.broadcast) {
+                    return;
+                }
+
+                if (datum.username === $('#username').val()) {
+                    $('#chat').append(iSaid(datum.username, datum.inserted, datum.message));
+                }
+                else {
+                    $('#chat').append(theySaid(datum.username, datum.inserted, datum.message));
+                }
+            }
+        });
+
+        mojo.connect("<%= url_for('subscribe')->to_abs %>");
+
+        //////
+        //////
+        //////
+
+        $('#btn-chat').on("click", function () {
+            if ("" === $('#chat-message').val()) {
+                alert("Nothing to send");
+
+                return;
+            }
+
+            mojo.channel("chat").send({ action: "incoming", username: $('#username').val(), message: $('#chat-message').val() });
+        });
+
+        $('#connect').on("click", function () {
+            if ("" === $('#username').val()) {
+                alert("No username");
+
+                return;
+            }
+
+            mojo.channel("presence").send({ username: $('#username').val() });
+        });
+
+        $('#usernameModal').modal("show");
+
+        function iSaid(name, time, text) {
+            return '<li class="left clearfix"><span class="chat-img pull-left">' +
+                '<img src="http://placehold.it/50/55C1E7/fff&text=U" alt="User Avatar" class="img-circle" />' +
+            '</span>' +
+                '<div class="chat-body clearfix">' +
+                    '<div class="header">' +
+                        '<strong class="primary-font">' + name + '</strong> <small class="pull-right text-muted">' +
+                            '<span class="glyphicon glyphicon-time"></span>' + time +'</small>' +
+                    '</div>' +
+                    '<p>' + text + '</p>' +
+                '</div>' +
+            '</li>';
+        }
+
+        function theySaid(name, time, text) {
+            return '<li class="right clearfix"><span class="chat-img pull-right">' +
+                '<img src="http://placehold.it/50/FA6F57/fff&text=THEM" alt="User Avatar" class="img-circle" />' +
+            '</span>' +
+                '<div class="chat-body clearfix">' +
+                    '<div class="header">' +
+                        '<small class=" text-muted"><span class="glyphicon glyphicon-time"></span>' + time  + '</small>' +
+                        '<strong class="pull-right primary-font">' + name + '</strong>' +
+                    '</div>' +
+                    '<p>' + text + '</p>' +
+                '</div>' +
+            '</li>';
+        }
+    </script>
+  </body>
+</html>
